@@ -17,11 +17,12 @@
 
 namespace {
 
-QTableWidgetItem *textItem(const QString &text)
+QTableWidgetItem *textItem(const QString &text,
+                           const Qt::Alignment &align = Qt::AlignLeft | Qt::AlignTop)
 {
     auto *item = new QTableWidgetItem(text.isEmpty() ? QStringLiteral("—") : text);
     item->setFlags(item->flags() & ~Qt::ItemIsEditable);
-    item->setTextAlignment(Qt::AlignLeft | Qt::AlignTop);
+    item->setTextAlignment(align);
     return item;
 }
 
@@ -38,6 +39,7 @@ AnalysisTab::AnalysisTab(QWidget *parent)
     m_records->setMinimumWidth(360);
     m_records->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
     m_records->setMinimumContentsLength(40);
+    m_records->addItem(QStringLiteral("стартовый из настроек"), 0);
     pickRow->addWidget(m_records, 1);
     root->addLayout(pickRow);
 
@@ -62,7 +64,7 @@ AnalysisTab::AnalysisTab(QWidget *parent)
     };
     for (int i = 0; i < names.size(); ++i) {
         m_scores->setItem(i, 0, textItem(names.at(i)));
-        m_scores->setItem(i, 1, textItem(QStringLiteral("—")));
+        m_scores->setItem(i, 1, textItem(QStringLiteral("—"), Qt::AlignCenter));
         m_scores->setItem(i, 2, textItem(QString()));
         m_scores->setItem(i, 3, textItem(QString()));
     }
@@ -118,8 +120,13 @@ AnalysisTab::AnalysisTab(QWidget *parent)
 
 void AnalysisTab::reloadStarterPrompt()
 {
-    if (selectedRecord().dialogId <= 0)
-        m_prompt->setPlainText(AppSettings::instance().sellerPrompt());
+    if (m_records) {
+        if (m_records->count() == 0 || m_records->itemData(0).toInt() != 0)
+            m_records->insertItem(0, QStringLiteral("стартовый из настроек"), 0);
+        QSignalBlocker b(m_records);
+        m_records->setCurrentIndex(0);
+    }
+    showRecord({});
 }
 
 void AnalysisTab::reloadFromStore()
@@ -127,6 +134,7 @@ void AnalysisTab::reloadFromStore()
     const int keepId = selectedRecord().dialogId;
     QSignalBlocker b(m_records);
     m_records->clear();
+    m_records->addItem(QStringLiteral("стартовый из настроек"), 0);
     const auto &all = SessionStore::instance().records();
     for (int i = 0; i < all.size(); ++i) {
         const bool seriesStart = (i == 0) || all.at(i).seriesId != all.at(i - 1).seriesId;
@@ -134,8 +142,8 @@ void AnalysisTab::reloadFromStore()
     }
     if (keepId > 0)
         selectDialogId(keepId);
-    else if (m_records->count() > 0)
-        m_records->setCurrentIndex(m_records->count() - 1);
+    else
+        m_records->setCurrentIndex(0);
     onSelectionChanged();
 }
 
@@ -164,8 +172,11 @@ void AnalysisTab::selectDialogId(int dialogId)
 AnalysisRecord AnalysisTab::selectedRecord() const
 {
     if (!m_records || m_records->currentIndex() < 0)
-        return SessionStore::instance().lastRecord();
-    return SessionStore::instance().recordById(m_records->currentData().toInt());
+        return {};
+    const int id = m_records->currentData().toInt();
+    if (id <= 0)
+        return {};
+    return SessionStore::instance().recordById(id);
 }
 
 QString AnalysisTab::currentPrompt() const
@@ -215,7 +226,7 @@ void AnalysisTab::showRecord(const AnalysisRecord &r)
         m_avg->setText(QStringLiteral("Итоговая оценка: —"));
         m_prompt->setPlainText(AppSettings::instance().sellerPrompt());
         for (int i = 0; i < 5; ++i) {
-            m_scores->setItem(i, 1, textItem(QStringLiteral("—")));
+            m_scores->setItem(i, 1, textItem(QStringLiteral("—"), Qt::AlignCenter));
             m_scores->setItem(i, 2, textItem(QString()));
             m_scores->setItem(i, 3, textItem(QString()));
         }
@@ -223,7 +234,8 @@ void AnalysisTab::showRecord(const AnalysisRecord &r)
     }
     for (int i = 0; i < 5; ++i) {
         const int v = r.scores.valueAt(i);
-        m_scores->setItem(i, 1, textItem(v > 0 ? QString::number(v) : QStringLiteral("—")));
+        m_scores->setItem(i, 1, textItem(v > 0 ? QString::number(v) : QStringLiteral("—"),
+                                        Qt::AlignCenter));
         m_scores->setItem(i, 2, textItem(r.scores.mistakeAt(i)));
         m_scores->setItem(i, 3, textItem(r.scores.recommendationAt(i)));
     }

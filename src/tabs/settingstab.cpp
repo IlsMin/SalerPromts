@@ -88,7 +88,7 @@ SettingsTab::SettingsTab(QWidget *parent)
     m_threads = new QSpinBox;
     m_threads->setRange(1, 32);
     m_pairs = new QSpinBox;
-    m_pairs->setRange(5, 20);
+    m_pairs->setRange(3, 20);
     m_dialogPort = new QSpinBox;
     m_dialogPort->setRange(1024, 65535);
     m_analyzerPort = new QSpinBox;
@@ -237,8 +237,7 @@ void SettingsTab::updateVramHint()
     if (!dialogHint.isEmpty())
         devices << QStringLiteral("Диалог: ") + dialogHint;
     const bool same = analyzerName.compare(d.fileName, Qt::CaseInsensitive) == 0;
-    if (m_analyzerGpu)
-        m_analyzerGpu->setEnabled(!same);
+    m_analyzerGpu->setEnabled(!same);
     if (same) {
         devices << QStringLiteral("Анализатор: та же модель и тот же сервер, что диалог.");
     } else {
@@ -248,8 +247,7 @@ void SettingsTab::updateVramHint()
         devices << QStringLiteral(
             "Перед анализом диалог выгружается — слои GPU анализатора не делят карту с диалогом.");
     }
-    if (m_deviceHint)
-        m_deviceHint->setText(devices.join(QStringLiteral("\n")));
+    m_deviceHint->setText(devices.join(QStringLiteral("\n")));
 
     const QString w1 = AppPaths::vramWarning(d.fileName, d.sizeBytes, m_dialogGpu->value(), 4096);
     if (!w1.isEmpty())

@@ -72,19 +72,21 @@ struct ScoreSet
 
     void setMistakeAt(int i, const QString &text)
     {
-        QString *v[] = {&contactMistake, &needsMistake, &objectionsMistake,
-                        &offerMistake, &buyerFitMistake};
-        if (i >= 0 && i < 5)
+        if (i >= 0 && i < 5) {
+            QString *v[] = {&contactMistake, &needsMistake, &objectionsMistake,
+                            &offerMistake, &buyerFitMistake};
             *v[i] = text;
+        }
     }
 
     void setRecommendationAt(int i, const QString &text)
     {
-        QString *v[] = {&contactRecommendation, &needsRecommendation,
-                        &objectionsRecommendation, &offerRecommendation,
-                        &buyerFitRecommendation};
-        if (i >= 0 && i < 5)
+        if (i >= 0 && i < 5) {
+            QString *v[] = {&contactRecommendation, &needsRecommendation,
+                            &objectionsRecommendation, &offerRecommendation,
+                            &buyerFitRecommendation};
             *v[i] = text;
+        }
     }
 };
 
@@ -109,6 +111,8 @@ struct AnalysisRecord
     QString newPrompt;
     double delta = 0.0;
     bool hasDelta = false;
+    QString dialogModel;
+    QString analyzerModel;
 };
 
 struct GgufModelInfo

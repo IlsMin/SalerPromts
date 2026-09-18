@@ -293,9 +293,131 @@ QString AppPaths::stripCjk(const QString &text)
     return out.simplified();
 }
 
+namespace {
+
+bool isLatinLetter(const QChar c)
+{
+    const ushort u = c.unicode();
+    return (u >= 'A' && u <= 'Z') || (u >= 'a' && u <= 'z');
+}
+
+bool isCyrillicLetter(const QChar c)
+{
+    const ushort u = c.unicode();
+    return (u >= 0x0400 && u <= 0x04FF);
+}
+
+bool wordIsRunglish(const QString &word)
+{
+    if (word.isEmpty())
+        return false;
+    bool latin = false;
+    bool cyr = false;
+    int latinLetters = 0;
+    bool allUpper = true;
+    for (const QChar c : word) {
+        if (isLatinLetter(c)) {
+            latin = true;
+            ++latinLetters;
+            if (c.isLower())
+                allUpper = false;
+        } else if (isCyrillicLetter(c)) {
+            cyr = true;
+        }
+    }
+    if (latin && cyr)
+        return true;
+    if (latinLetters >= 4 && !allUpper)
+        return true;
+    return latinLetters >= 8;
+}
+
+} // namespace
+
+bool AppPaths::hasRunglish(const QString &text)
+{
+    QString word;
+    for (const QChar c : text) {
+        if (c.isLetter()) {
+            word += c;
+            continue;
+        }
+        if (wordIsRunglish(word))
+            return true;
+        word.clear();
+    }
+    return wordIsRunglish(word);
+}
+
+QString AppPaths::stripRunglish(const QString &text)
+{
+    QString out;
+    out.reserve(text.size());
+    QString word;
+    auto flush = [&]() {
+        if (word.isEmpty())
+            return;
+        if (!wordIsRunglish(word))
+            out += word;
+        word.clear();
+    };
+    for (const QChar c : text) {
+        if (c.isLetter()) {
+            word += c;
+        } else {
+            flush();
+            out += c;
+        }
+    }
+    flush();
+    return out.simplified();
+}
+
+bool AppPaths::expectsRubles(const QString &context)
+{
+    return context.contains(QChar(0x20BD))
+        || context.contains(QStringLiteral("руб"), Qt::CaseInsensitive);
+}
+
+bool AppPaths::hasForeignCurrency(const QString &text)
+{
+    const QString t = text.toLower();
+    const QStringList bad = {
+        QStringLiteral("рупи"),
+        QStringLiteral("грн"),
+        QStringLiteral("гривн"),
+        QStringLiteral("тенге"),
+        QStringLiteral("доллар"),
+        QStringLiteral("rupee"),
+        QStringLiteral("hryvn"),
+    };
+    for (const QString &b : bad) {
+        if (t.contains(b))
+            return true;
+    }
+    return false;
+}
+
+QString AppPaths::replaceForeignCurrency(const QString &text)
+{
+    QString s = text;
+    const QRegularExpression::PatternOptions opt =
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::UseUnicodePropertiesOption;
+    s.replace(QRegularExpression(QStringLiteral("рупиях"), opt), QStringLiteral("рублях"));
+    s.replace(QRegularExpression(QStringLiteral("рупий"), opt), QStringLiteral("рублей"));
+    s.replace(QRegularExpression(QStringLiteral("рупии"), opt), QStringLiteral("рубли"));
+    s.replace(QRegularExpression(QStringLiteral("рупия"), opt), QStringLiteral("рубль"));
+    s.replace(QRegularExpression(QStringLiteral("гривен"), opt), QStringLiteral("рублей"));
+    s.replace(QRegularExpression(QStringLiteral("гривн\\w*"), opt), QStringLiteral("рублей"));
+    s.replace(QRegularExpression(QStringLiteral("\\bгрн\\b"), opt), QStringLiteral("₽"));
+    s.replace(QRegularExpression(QStringLiteral("долларов"), opt), QStringLiteral("рублей"));
+    s.replace(QRegularExpression(QStringLiteral("тенге"), opt), QStringLiteral("рублей"));
+    return s;
+}
+
 double AppPaths::guessParamBillions(const QString &fileName)
 {
-    const QRegularExpression re(QStringLiteral(R"((\d+(?:\.\d+)?)[_-]?b)"),
+    const QRegularExpression re(QStringLiteral(R"(([0-9]+(?:[.][0-9]+)?)[_-]?b)"),
                                 QRegularExpression::CaseInsensitiveOption);
     const QRegularExpressionMatch m = re.match(fileName);
     if (m.hasMatch())
