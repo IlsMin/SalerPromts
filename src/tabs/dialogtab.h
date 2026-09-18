@@ -19,7 +19,10 @@ public:
     explicit DialogTab(QWidget *parent = nullptr);
 
     void reloadProducts();
+    void reloadBuyers();
     CatalogItem selectedProduct() const;
+    QString buyerComboKey() const;
+    CatalogItem resolveBuyer() const;
     int targetPairs() const;
     void setRunning(bool running);
     void clearChat();
@@ -32,6 +35,7 @@ signals:
 
 private:
     QComboBox *m_productCombo = nullptr;
+    QComboBox *m_buyerCombo = nullptr;
     QPushButton *m_startBtn = nullptr;
     QPushButton *m_stopBtn = nullptr;
     QSpinBox *m_pairs = nullptr;

@@ -45,10 +45,11 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_dialogTab, &DialogTab::stopRequested, this, &MainWindow::stopCurrentRun);
     connect(m_analysisTab, &AnalysisTab::applyRequested, this, &MainWindow::startImprovementCycles);
     connect(m_settingsTab, &SettingsTab::applyRequested, this, [this]() {
+        m_analysisTab->reloadStarterPrompt();
+        m_tabs->setCurrentWidget(m_analysisTab);
         if (m_busy)
             return;
         m_llm->preloadFromSettings();
-        m_analysisTab->reloadStarterPrompt();
     });
     connect(m_dialogEngine, &DialogEngine::turnReady, m_dialogTab, &DialogTab::appendTurn);
     connect(m_dialogEngine, &DialogEngine::progress, this, [this](int, int, const QString &s) {
@@ -57,6 +58,11 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_dialogEngine, &DialogEngine::finished, this, &MainWindow::onDialogFinished);
     connect(m_dialogEngine, &DialogEngine::failed, this, [this](const QString &e) {
         setBusy(false, e);
+        if (m_closing)
+            return;
+        const QString low = e.toLower();
+        if (low.contains(QStringLiteral("canceled")) || low.contains(QStringLiteral("отмен")))
+            return;
         QMessageBox::warning(this, QStringLiteral("Диалог"), e);
     });
     connect(m_analyzer, &Analyzer::progress, this, [this](const QString &s) {
@@ -65,6 +71,11 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_analyzer, &Analyzer::finished, this, &MainWindow::onAnalysisFinished);
     connect(m_analyzer, &Analyzer::failed, this, [this](const QString &e) {
         setBusy(false, e);
+        if (m_closing)
+            return;
+        const QString low = e.toLower();
+        if (low.contains(QStringLiteral("canceled")) || low.contains(QStringLiteral("отмен")))
+            return;
         QMessageBox::warning(this, QStringLiteral("Анализ"), e);
     });
     connect(m_llm, &LocalLlm::statusChanged, this, [this](const QString &s) {
@@ -95,7 +106,34 @@ MainWindow::~MainWindow() = default;
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    m_llm->shutdown();
+    if (m_closing) {
+        event->accept();
+        return;
+    }
+    if (m_busy) {
+        const auto ans = QMessageBox::question(
+            this,
+            QStringLiteral("Выход"),
+            QStringLiteral("Идёт диалог или цикл. Прервать работу, выгрузить модели и выйти?"),
+            QMessageBox::Yes | QMessageBox::No,
+            QMessageBox::No);
+        if (ans != QMessageBox::Yes) {
+            event->ignore();
+            return;
+        }
+    }
+
+    m_closing = true;
+    resetCycleProgress();
+    if (m_dialogEngine && m_dialogEngine->isBusy())
+        m_dialogEngine->abort();
+    if (m_analyzer && m_analyzer->isBusy())
+        m_analyzer->abort();
+    if (m_llm) {
+        m_llm->abortPendingGeneration();
+        m_llm->shutdown();
+    }
+    event->accept();
     QMainWindow::closeEvent(event);
 }
 
@@ -115,19 +153,13 @@ void MainWindow::resetCycleProgress()
     m_cyclesLeft = 0;
     m_cycleCurrent = 0;
     m_cycleTotal = 0;
+    m_cycleBuyer = {};
     updateCycleUi();
 }
 
 void MainWindow::updateCycleUi()
 {
     m_analysisTab->setCycleProgress(m_cycleCurrent, m_cycleTotal);
-    const int idx = m_tabs->indexOf(m_analysisTab);
-    if (idx < 0)
-        return;
-    if (m_busy && m_cycleTotal > 0 && m_cycleCurrent > 0)
-        m_tabs->setTabText(idx, QStringLiteral("Анализ (%1/%2)").arg(m_cycleCurrent).arg(m_cycleTotal));
-    else
-        m_tabs->setTabText(idx, QStringLiteral("Анализ"));
 }
 
 QString MainWindow::withCyclePrefix(const QString &status) const
@@ -172,6 +204,7 @@ void MainWindow::startFreshDialog()
     }
     resetCycleProgress();
     m_cycleProduct = product;
+    m_cycleBuyer = m_dialogTab->resolveBuyer();
     m_cyclePrompt = AppSettings::instance().sellerPrompt();
     m_activeSeriesId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     m_cycleTotal = 1;
@@ -189,21 +222,45 @@ void MainWindow::startImprovementCycles()
     if (selected.dialogId <= 0)
         selected = SessionStore::instance().lastRecord();
 
+    const QString fieldPrompt = Catalogs::keepAsSellerTemplate(
+        m_analysisTab->currentPrompt(), AppSettings::instance().sellerPrompt());
+    const QString selectedTpl = Catalogs::keepAsSellerTemplate(
+        selected.newPrompt,
+        Catalogs::keepAsSellerTemplate(selected.sellerPromptTemplate,
+                                       AppSettings::instance().sellerPrompt()));
+    const auto &cfg = AppSettings::instance();
+    const bool modelsMatch = selected.dialogModel.isEmpty()
+        || (QString::compare(selected.dialogModel, cfg.dialogModel(), Qt::CaseInsensitive) == 0
+            && (selected.analyzerModel.isEmpty()
+                || QString::compare(selected.analyzerModel, cfg.analyzerModel(),
+                                    Qt::CaseInsensitive) == 0));
+    const QString comboBuyer = m_dialogTab->buyerComboKey();
+    const bool buyerMatch = comboBuyer.isEmpty()
+        || selected.buyerType.isEmpty()
+        || QString::compare(comboBuyer, selected.buyerType, Qt::CaseInsensitive) == 0;
+    const bool continueSeries = selected.dialogId > 0
+        && !fieldPrompt.trimmed().isEmpty()
+        && QString::compare(fieldPrompt.trimmed(), selectedTpl.trimmed(), Qt::CaseInsensitive) == 0
+        && modelsMatch
+        && buyerMatch;
+
     CatalogItem product;
     QString seriesId;
     int nextCycle = 0;
-    if (selected.dialogId > 0) {
+    if (continueSeries) {
         product = Catalogs::instance().productByItem(selected.productItem);
         if (product.item.isEmpty()) {
             product.item = selected.productItem;
             product.descr = selected.productDescr;
         }
-        m_cyclePrompt = Catalogs::keepAsSellerTemplate(
-            selected.newPrompt,
-            Catalogs::keepAsSellerTemplate(selected.sellerPromptTemplate,
-                                           AppSettings::instance().sellerPrompt()));
+        m_cyclePrompt = selectedTpl;
         seriesId = selected.seriesId;
         nextCycle = selected.cycleIndex + 1;
+        m_cycleBuyer = Catalogs::instance().customerByItem(selected.buyerType);
+        if (m_cycleBuyer.item.isEmpty()) {
+            m_cycleBuyer.item = selected.buyerType;
+            m_cycleBuyer.descr = selected.buyerDescr;
+        }
     } else {
         product = m_dialogTab->selectedProduct();
         if (product.item.isEmpty()) {
@@ -211,14 +268,14 @@ void MainWindow::startImprovementCycles()
                                  QStringLiteral("Выберите товар на вкладке «Диалог»."));
             return;
         }
-        m_cyclePrompt = Catalogs::keepAsSellerTemplate(
-            m_analysisTab->currentPrompt(), AppSettings::instance().sellerPrompt());
+        m_cyclePrompt = fieldPrompt;
         if (m_cyclePrompt.trimmed().isEmpty()) {
             QMessageBox::warning(this, QStringLiteral("Анализ"),
                                  QStringLiteral("Нет промпта продавца. Задайте его в настройках."));
             return;
         }
         seriesId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        m_cycleBuyer = m_dialogTab->resolveBuyer();
     }
 
     m_cycleProduct = product;
@@ -235,7 +292,9 @@ void MainWindow::launchDialog(const CatalogItem &product,
                               const QString &seriesId,
                               int cycleIndex)
 {
-    const CatalogItem buyer = Catalogs::instance().randomCustomer();
+    CatalogItem buyer = m_cycleBuyer;
+    if (buyer.item.isEmpty())
+        buyer = m_dialogTab->resolveBuyer();
     const QString sellerTemplate = Catalogs::keepAsSellerTemplate(
         sellerPrompt, AppSettings::instance().sellerPrompt());
 

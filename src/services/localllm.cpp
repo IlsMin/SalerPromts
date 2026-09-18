@@ -105,13 +105,18 @@ void LlamaServer::stop()
         m_healthReply = nullptr;
     }
     if (m_genReply) {
-        m_genReply->abort();
-        m_genReply->deleteLater();
+        QNetworkReply *reply = m_genReply;
         m_genReply = nullptr;
+        reply->disconnect(this);
+        reply->abort();
+        reply->deleteLater();
     }
     const bool wasReady = m_ready;
     m_ready = false;
     m_starting = false;
+    m_modelFileName.clear();
+    m_modelPath.clear();
+    m_gpuLayers = -1;
     if (m_proc) {
         ChildCleanup::detachLlamaChild(m_proc->processId());
         m_proc->disconnect(this);
@@ -299,6 +304,7 @@ void LlamaServer::abortGeneration()
         return;
     QNetworkReply *reply = m_genReply;
     m_genReply = nullptr;
+    reply->disconnect(this);
     reply->abort();
     reply->deleteLater();
 }
@@ -778,7 +784,7 @@ void LocalLlm::generateDialog(const QString &systemPrompt,
     static const QString kRussianGrammar = QStringLiteral(
         "root ::= text\n"
         "text ::= char+\n"
-        "char ::= [0-9A-Za-zА-Яа-яёЁ \\t\\n.,!?;:()%+/№#@*=<>«»\"'\\[\\]-]");
+        "char ::= [0-9A-ZА-Яа-яёЁ \\t\\n.,!?;:()%+/№#@*=<>«»\"'\\[\\]-]");
     m_pending = PendingKind::Dialog;
     m_dialog->generate(systemPrompt, history, n, 0.55, kRussianGrammar);
 }

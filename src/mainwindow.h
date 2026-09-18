@@ -53,11 +53,13 @@ private:
     SettingsTab *m_settingsTab = nullptr;
 
     bool m_busy = false;
+    bool m_closing = false;
     int m_cyclesLeft = 0;
     int m_cycleCurrent = 0;
     int m_cycleTotal = 0;
     QString m_activeSeriesId;
     CatalogItem m_cycleProduct;
+    CatalogItem m_cycleBuyer;
     QString m_cyclePrompt;
 };
 

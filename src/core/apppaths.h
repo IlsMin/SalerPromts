@@ -37,6 +37,11 @@ public:
     static bool isCjkCodepoint(uint u);
     static bool hasCjk(const QString &text);
     static QString stripCjk(const QString &text);
+    static bool hasRunglish(const QString &text);
+    static QString stripRunglish(const QString &text);
+    static bool expectsRubles(const QString &context);
+    static bool hasForeignCurrency(const QString &text);
+    static QString replaceForeignCurrency(const QString &text);
 };
 
 #endif // APPPATHS_H

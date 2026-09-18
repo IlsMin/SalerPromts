@@ -135,6 +135,8 @@ QJsonObject SessionStore::toJson(const AnalysisRecord &r)
     o.insert(QStringLiteral("newPrompt"), r.newPrompt);
     o.insert(QStringLiteral("delta"), r.delta);
     o.insert(QStringLiteral("hasDelta"), r.hasDelta);
+    o.insert(QStringLiteral("dialogModel"), r.dialogModel);
+    o.insert(QStringLiteral("analyzerModel"), r.analyzerModel);
 
     QJsonArray turns;
     for (const DialogTurn &t : r.transcript) {
@@ -166,6 +168,8 @@ AnalysisRecord SessionStore::fromJson(const QJsonObject &o)
     r.newPrompt = o.value(QStringLiteral("newPrompt")).toString();
     r.delta = o.value(QStringLiteral("delta")).toDouble();
     r.hasDelta = o.value(QStringLiteral("hasDelta")).toBool();
+    r.dialogModel = o.value(QStringLiteral("dialogModel")).toString();
+    r.analyzerModel = o.value(QStringLiteral("analyzerModel")).toString();
 
     for (const QJsonValue &v : o.value(QStringLiteral("mistakes")).toArray())
         r.mistakes << v.toString();
@@ -262,7 +266,9 @@ void SessionStore::clear()
 void SessionStore::recomputeDeltas()
 {
     for (int i = 0; i < m_records.size(); ++i) {
-        if (i == 0) {
+        const bool seriesStart = (i == 0)
+            || m_records[i].seriesId != m_records[i - 1].seriesId;
+        if (seriesStart) {
             m_records[i].hasDelta = false;
             m_records[i].delta = 0.0;
             continue;
@@ -280,8 +286,11 @@ void SessionStore::updateDeltas(AnalysisRecord *record) const
     record->delta = 0.0;
     if (m_records.isEmpty())
         return;
+    const AnalysisRecord &prev = m_records.last();
+    if (record->seriesId.isEmpty() || record->seriesId != prev.seriesId)
+        return;
     record->hasDelta = true;
-    record->delta = record->average - m_records.last().average;
+    record->delta = record->average - prev.average;
 }
 
 bool SessionStore::isUnusable(const AnalysisRecord &r)

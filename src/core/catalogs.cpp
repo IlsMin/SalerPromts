@@ -155,6 +155,15 @@ CatalogItem Catalogs::productByItem(const QString &item) const
     return {};
 }
 
+CatalogItem Catalogs::customerByItem(const QString &item) const
+{
+    for (const CatalogItem &c : m_customers) {
+        if (c.item == item)
+            return c;
+    }
+    return {};
+}
+
 CatalogItem Catalogs::randomCustomer() const
 {
     if (m_customers.isEmpty())

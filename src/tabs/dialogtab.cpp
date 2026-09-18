@@ -1,11 +1,13 @@
 #include "dialogtab.h"
 
+#include "core/appsettings.h"
 #include "core/catalogs.h"
 
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QSpinBox>
 #include <QTextBrowser>
 #include <QVBoxLayout>
@@ -36,11 +38,20 @@ DialogTab::DialogTab(QWidget *parent)
     row->addWidget(m_stopBtn);
     row->addWidget(new QLabel(QStringLiteral("вопросов:")));
     m_pairs = new QSpinBox;
-    m_pairs->setRange(5, 20);
+    m_pairs->setRange(3, 20);
     m_pairs->setValue(5);
     m_pairs->setToolTip(QStringLiteral("Сколько пар реплик в предстоящем диалоге"));
     row->addWidget(m_pairs);
     root->addLayout(row);
+
+    auto *buyerRow = new QHBoxLayout;
+    buyerRow->addWidget(new QLabel(QStringLiteral("Покупатель:")));
+    m_buyerCombo = new QComboBox;
+    m_buyerCombo->setMinimumWidth(280);
+    m_buyerCombo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    m_buyerCombo->setMinimumContentsLength(24);
+    buyerRow->addWidget(m_buyerCombo, 1);
+    root->addLayout(buyerRow);
 
     m_buyerInfo = new QLabel;
     m_buyerInfo->setWordWrap(true);
@@ -55,7 +66,46 @@ DialogTab::DialogTab(QWidget *parent)
 
     connect(m_startBtn, &QPushButton::clicked, this, &DialogTab::startRequested);
     connect(m_stopBtn, &QPushButton::clicked, this, &DialogTab::stopRequested);
+    connect(m_buyerCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        const QString name = m_buyerCombo->currentData().toString();
+        if (name.isEmpty())
+            setBuyerInfo({});
+        else
+            setBuyerInfo(Catalogs::instance().customerByItem(name));
+        auto &cfg = AppSettings::instance();
+        cfg.setBuyerType(name);
+        cfg.sync();
+    });
     reloadProducts();
+    reloadBuyers();
+}
+
+void DialogTab::reloadBuyers()
+{
+    const QString current = m_buyerCombo->currentData().toString();
+    const QString want = current.isEmpty() ? AppSettings::instance().buyerType() : current;
+    QSignalBlocker block(m_buyerCombo);
+    m_buyerCombo->clear();
+    m_buyerCombo->addItem(QStringLiteral("случайный (один на серию)"), QString());
+    m_buyerCombo->setItemData(0, QStringLiteral(
+        "На старте серии выбирается один типаж и держится во всех её циклах. "
+        "Для сравнения моделей выберите тип вручную."), Qt::ToolTipRole);
+    for (const CatalogItem &c : Catalogs::instance().customers()) {
+        m_buyerCombo->addItem(c.item, c.item);
+        m_buyerCombo->setItemData(m_buyerCombo->count() - 1, c.descr, Qt::ToolTipRole);
+    }
+    int idx = 0;
+    if (!want.isEmpty()) {
+        const int found = m_buyerCombo->findData(want);
+        if (found >= 0)
+            idx = found;
+    }
+    m_buyerCombo->setCurrentIndex(idx);
+    const QString name = m_buyerCombo->currentData().toString();
+    if (name.isEmpty())
+        setBuyerInfo({});
+    else
+        setBuyerInfo(Catalogs::instance().customerByItem(name));
 }
 
 void DialogTab::reloadProducts()
@@ -83,7 +133,24 @@ void DialogTab::setRunning(bool running)
     m_startBtn->setEnabled(!running);
     m_stopBtn->setEnabled(running);
     m_productCombo->setEnabled(!running);
+    m_buyerCombo->setEnabled(!running);
     m_pairs->setEnabled(!running);
+}
+
+QString DialogTab::buyerComboKey() const
+{
+    return m_buyerCombo ? m_buyerCombo->currentData().toString() : QString();
+}
+
+CatalogItem DialogTab::resolveBuyer() const
+{
+    const QString name = buyerComboKey();
+    if (name.isEmpty())
+        return Catalogs::instance().randomCustomer();
+    CatalogItem c = Catalogs::instance().customerByItem(name);
+    if (c.item.isEmpty())
+        return Catalogs::instance().randomCustomer();
+    return c;
 }
 
 int DialogTab::targetPairs() const
@@ -100,7 +167,8 @@ void DialogTab::setBuyerInfo(const CatalogItem &buyer)
 {
     if (buyer.item.isEmpty()) {
         m_buyerInfo->setText(QStringLiteral(
-            "Тип покупателя выбирается случайно при старте диалога."));
+            "Случайный типаж: один выбирается на старте серии и не меняется в её циклах. "
+            "Для чистого сравнения моделей выберите покупателя в списке выше."));
         m_buyerInfo->setToolTip(QString());
         return;
     }

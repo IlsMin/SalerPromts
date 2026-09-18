@@ -46,6 +46,9 @@ public:
     int targetPairs() const { return m_targetPairs; }
     void setTargetPairs(int pairs);
 
+    QString buyerType() const { return m_buyerType; }
+    void setBuyerType(const QString &item);
+
     QString sellerPrompt() const { return m_sellerPrompt; }
     void setSellerPrompt(const QString &text);
 
@@ -78,6 +81,7 @@ private:
     int m_dialogMaxTokens = 256;
     int m_analyzerMaxTokens = 400;
     int m_targetPairs = 5;
+    QString m_buyerType;
     QString m_sellerPrompt;
     QString m_buyerPrompt;
 };

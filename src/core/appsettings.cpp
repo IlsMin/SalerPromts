@@ -39,7 +39,8 @@ AppSettings::AppSettings(QObject *parent)
                                  qMax(2, QThread::idealThreadCount() - 1)).toInt(), 32);
     m_dialogPort = qBound(1024, s.value(QStringLiteral("llm/dialogPort"), 8088).toInt(), 65535);
     m_analyzerPort = qBound(1024, s.value(QStringLiteral("llm/analyzerPort"), 8089).toInt(), 65535);
-    m_targetPairs = qBound(5, s.value(QStringLiteral("dialog/targetPairs"), 5).toInt(), 20);
+    m_targetPairs = qBound(3, s.value(QStringLiteral("dialog/targetPairs"), 5).toInt(), 20);
+    m_buyerType = s.value(QStringLiteral("dialog/buyerType")).toString();
     m_sellerPrompt = s.value(QStringLiteral("prompts/seller")).toString();
     m_buyerPrompt = s.value(QStringLiteral("prompts/buyer")).toString();
     loadDefaultsIfEmpty();
@@ -127,7 +128,12 @@ void AppSettings::setAnalyzerPort(int port)
 
 void AppSettings::setTargetPairs(int pairs)
 {
-    m_targetPairs = qBound(5, pairs, 20);
+    m_targetPairs = qBound(3, pairs, 20);
+}
+
+void AppSettings::setBuyerType(const QString &item)
+{
+    m_buyerType = item.trimmed();
 }
 
 void AppSettings::setSellerPrompt(const QString &text)
@@ -158,6 +164,7 @@ void AppSettings::sync()
     s.setValue(QStringLiteral("llm/dialogPort"), m_dialogPort);
     s.setValue(QStringLiteral("llm/analyzerPort"), m_analyzerPort);
     s.setValue(QStringLiteral("dialog/targetPairs"), m_targetPairs);
+    s.setValue(QStringLiteral("dialog/buyerType"), m_buyerType);
     s.setValue(QStringLiteral("prompts/seller"), m_sellerPrompt);
     s.setValue(QStringLiteral("prompts/buyer"), m_buyerPrompt);
     s.sync();

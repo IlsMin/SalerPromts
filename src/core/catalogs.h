@@ -18,6 +18,7 @@ public:
     const QVector<CatalogItem> &customers() const { return m_customers; }
 
     CatalogItem productByItem(const QString &item) const;
+    CatalogItem customerByItem(const QString &item) const;
     CatalogItem randomCustomer() const;
 
     static QString defaultSellerPrompt();

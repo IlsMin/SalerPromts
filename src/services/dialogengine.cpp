@@ -175,9 +175,13 @@ void DialogEngine::start(const CatalogItem &product,
     m_record.sellerPrompt = Catalogs::substitutePlaceholders(sellerPrompt, product, buyer);
     m_record.seriesId = seriesId;
     m_record.cycleIndex = cycleIndex;
+    m_record.dialogModel = m_llm->dialogModelName().isEmpty()
+        ? AppSettings::instance().dialogModel()
+        : m_llm->dialogModelName();
     const QString extraRules = QStringLiteral(
         "\n\nLANGUAGE LOCK: отвечайте только на русском языке, кириллицей. "
-        "Запрещены китайский, японский, корейский, иероглифы, латиница целыми фразами. "
+        "Запрещены китайский, японский, корейский, иероглифы и английские слова внутри русской фразы. "
+        "Не клеите английский корень с русским окончанием. "
         "Если мысль на другом языке — сразу перескажите её по-русски. "
         "Никогда не продолжайте чужой ответ на китайском.\n"
         "Поприветствуйте собеседника только в самой первой своей реплике. "
@@ -185,7 +189,7 @@ void DialogEngine::start(const CatalogItem &product,
     m_langRetries = 0;
     m_sellerSystem = m_record.sellerPrompt + extraRules;
     m_buyerSystem = Catalogs::substitutePlaceholders(buyerPrompt, product, buyer) + extraRules;
-    m_targetPairs = (targetPairs >= 5) ? qBound(5, targetPairs, 20)
+    m_targetPairs = (targetPairs >= 3) ? qBound(3, targetPairs, 20)
                                        : AppSettings::instance().targetPairs();
     m_busy = true;
     m_phase = Phase::WaitServers;
@@ -208,6 +212,9 @@ void DialogEngine::beginWhenReady()
 {
     if (!m_busy || m_phase != Phase::WaitServers)
         return;
+    m_record.dialogModel = m_llm->dialogModelName().isEmpty()
+        ? AppSettings::instance().dialogModel()
+        : m_llm->dialogModelName();
     requestSeller();
 }
 
@@ -273,7 +280,8 @@ QVector<ChatMessage> DialogEngine::withLanguageLock(QVector<ChatMessage> hist, b
     if (!retry)
         return hist;
     const QString lock = QStringLiteral(
-        "Повторите предыдущую мысль только по-русски, без иероглифов.");
+        "Повторите предыдущую мысль только по-русски, без английских слов и без иероглифов. "
+        "Цены только в рублях.");
     if (hist.isEmpty() || hist.last().role != QStringLiteral("user"))
         hist.push_back({QStringLiteral("user"), lock});
     else
@@ -288,7 +296,9 @@ void DialogEngine::onDialogReply(const QString &text)
     if (m_phase != Phase::Seller && m_phase != Phase::Buyer)
         return;
 
-    if (AppPaths::hasCjk(text) && m_langRetries < 1) {
+    const bool badMoney = AppPaths::expectsRubles(m_record.sellerPrompt)
+        && AppPaths::hasForeignCurrency(text);
+    if ((AppPaths::hasCjk(text) || AppPaths::hasRunglish(text) || badMoney) && m_langRetries < 1) {
         ++m_langRetries;
         if (m_phase == Phase::Seller)
             requestSeller();
@@ -298,7 +308,9 @@ void DialogEngine::onDialogReply(const QString &text)
     }
 
     const bool seller = (m_phase == Phase::Seller);
-    QString clean = stripMetaLeak(AppPaths::stripCjk(text.trimmed()));
+    QString clean = stripMetaLeak(AppPaths::stripRunglish(AppPaths::stripCjk(text.trimmed())));
+    if (AppPaths::expectsRubles(m_record.sellerPrompt) && AppPaths::hasForeignCurrency(clean))
+        clean = AppPaths::replaceForeignCurrency(clean);
     if (clean.size() < 8)
         clean = fallbackTurn(seller);
     m_langRetries = 0;
