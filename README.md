@@ -1,70 +1,39 @@
 # SalerPromts
 
-Десктопное Qt-приложение: продавец и покупатель (локальные LLM) ведут учебный диалог, анализатор ставит оценки и предлагает новый промпт продавца. Можно гонять пакет циклов улучшения.
+A high-performance cross-platform desktop application built with **Qt 6** and **Modern C++** designed for deterministic, privacy-first offline prompt engineering and multi-agent AI workflow automation. 
 
-## Что внутри
+The system operates entirely on-device, leveraging local **llama.cpp** server infrastructures to orchestrate GGUF models without cloud dependencies, ensuring complete corporate data compliance.
 
-- **Диалог** — товар из каталога, случайный тип покупателя, пары реплик.
-- **Анализ** — разбор по критериям, промпт продавца (сначала стартовый из настроек, после разбора — рекомендованный).
-- **Итоги** — таблица сессий, средняя оценка и Δ к предыдущей строке. «новая» — старт серии. Кнопка **Начать** = серия из одного прохода.
-- **Настройки** — пути к GGUF и `llama-server`, модели, слои GPU, промпты с плейсхолдерами `{item}`, `{item_descr}`, `{item_knowledge}`, `{buyer_type}`, `{buyer_descr}`.
+---
 
-Пока идёт диалог или цикл, **Сохранить и применить** выключено: смена модели перезапускает сервер и рвёт сессию.
+## 🛠 Core Technical Features & Architecture
 
-## Зависимости
+* **On-Device AI Engine Integration:** Direct orchestration and state management of local `llama-server.exe` pipelines. Handles prompt engineering iterations directly against local GGUF models.
+* **Smart Resource Management:** Native C++ optimization layers designed to control inference parameters, session contexts, and hardware constraints safely.
+* **Fluid Modern UI:** Reactive desktop user interface engineered with **Qt 6 (MSVC 2022)**, optimizing memory usage and ensuring smooth thread separation between the C++ inference engine and the GUI rendering cycle.
+* **Deterministic Local Storage:** Utilizes local JSON catalogs and structured databases (`data/products.json`, `data/results.json`) for zero-latency storage of prompt matrices and model outputs.
+* **Asynchronous Execution:** Heavy server IO operations and model interactions are completely decoupled from the main GUI thread to maintain maximum desktop responsiveness.
 
-- Windows x64
-- Qt 6 (собиралось на **6.11.1 MSVC 2022 64-bit**)
-- Visual Studio 2022 с `vcvars64.bat`
-- [llama.cpp](https://github.com/ggml-org/llama.cpp) — каталог с `llama-server.exe`
-- Модели **GGUF** (для диалога удобно Qwen2.5-3B Q4; анализатор может быть той же или отдельной, например 7B)
+---
 
-## Сборка
+## 💻 Tech Stack & Requirements
 
-Пути в `build.bat` заточены под типичную установку Qt/VS. Поправьте их под свою машину или соберите из Qt Creator (kit MSVC 2022 64-bit, Release).
+* **Framework:** Qt 6.x (Successfully compiled on **Qt 6.11.1**)
+* **Compiler:** MSVC 2022 (64-bit) / Modern C++ Standards
+* **AI Core Backend:** `llama.cpp` (Local server architecture)
+* **Model Format:** GGUF (Optimized for local CPU/GPU layer split)
+* **Data Serialization:** Modern JSON pipelines
 
-```bat
-build.bat
-```
+---
 
-Готовый exe: `build\release\SalerPromts.exe`.
+## 📂 Project Structure & Catalogs
 
-Из уже настроенного `build\`:
+* `src/` — Primary C++ backends, custom Qt components, and application logic.
+* `data/products.json` — Structured local catalog managing local contexts and entities.
+* `data/results.json` — Local database storage tracking deterministic model outputs and prompt histories.
 
-```bat
-call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-nmake /nologo -f Makefile.Release
-```
+---
 
-После правок `.pro` сначала `qmake`.
+## 🚀 Strategic Architecture Note
 
-## Первый запуск
-
-1. Укажите каталог GGUF и каталог с `llama-server.exe`.
-2. Выберите модель диалога и анализатора.
-   - Одна и та же модель — один `llama-server`, без перезагрузки между ролями.
-   - Разные модели — по очереди: перед анализом диалог выгружается, GPU свободен; анализатору можно **99** слоёв.
-3. **Сохранить и применить**, дождитесь статуса GPU (не `both`, если хотите полную карту).
-4. На **Диалоге** выберите товар и **Начать**, либо на **Анализе** сразу **Применить рекомендации** (стартовый промпт + товар с вкладки «Диалог»).
-
-Результаты пишутся в `data\results.json` **рядом с exe**, не в AppData. Файл в git не входит.
-
-## Каталоги
-
-| Файл | Назначение |
-| --- | --- |
-| `data/products.json` | Товары и база знаний для продавца |
-| `data/customers.json` | Типы покупателей |
-| `data/default_seller_prompt.txt` | Стартовый промпт продавца |
-| `data/default_buyer_prompt.txt` | Роль покупателя |
-
-Плейсхолдеры `{buyer_type}` / `{buyer_descr}` должны оставаться в шаблоне продавца — подставляются заново в каждом диалоге.
-
-## Лицензия
-
-Пока не задана. Репозиторий закрытый: доступ — через приглашение collaborator на GitHub.
-
-
-## SAST Tools
-
-[PVS-Studio](https://pvs-studio.com/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) - static code analyzer for Enterprise (C, C++, C#, Go, and Java) and Web (JS and TS) development.
+This project serves as a showcase of bridging performance-critical **C++ local ML backend inference** with scalable **Qt desktop presentation layers**. Engineered under strict privacy-first constraints, it highlights extreme footprint minimization, local process orchestration, and advanced prompt-engineering automation tools.
