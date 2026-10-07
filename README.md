@@ -18,7 +18,7 @@ The system operates entirely on-device, leveraging local **llama.cpp** server in
 ---
 
 ## 💻 Tech Stack & Requirements
-
+ (Only Windows version is discribed here)
 * **Framework:** Qt 6.x (Successfully compiled on **Qt 6.11.1**)
 * **Compiler:** MSVC 2022 (64-bit) / Modern C++ Standards
 * **AI Core Backend:** `llama.cpp` (Local server architecture)
