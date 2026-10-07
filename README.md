@@ -6,13 +6,14 @@ The system operates entirely on-device, leveraging local **llama.cpp** server in
 
 ---
 
-## 🛠 Core Technical Features & Architecture
+##
+🛠 Core Technical Features & Architecture
 
-* **On-Device AI Engine Integration:** Direct orchestration and state management of local `llama-server.exe` pipelines. Handles prompt engineering iterations directly against local GGUF models.
-* **Smart Resource Management:** Native C++ optimization layers designed to control inference parameters, session contexts, and hardware constraints safely.
-* **Fluid Modern UI:** Reactive desktop user interface engineered with **Qt 6 (MSVC 2022)**, optimizing memory usage and ensuring smooth thread separation between the C++ inference engine and the GUI rendering cycle.
-* **Deterministic Local Storage:** Utilizes local JSON catalogs and structured databases (`data/products.json`, `data/results.json`) for zero-latency storage of prompt matrices and model outputs.
-* **Asynchronous Execution:** Heavy server IO operations and model interactions are completely decoupled from the main GUI thread to maintain maximum desktop responsiveness.
+    On-Device AI Engine Integration: Direct orchestration and state management of local llama-server processes. Handles prompt engineering iterations asynchronously directly against local GGUF models.
+    Smart Resource Management: Native C++ optimization layers designed to control inference parameters, session contexts, and hardware constraints safely.
+    Fluid Modern UI: Reactive desktop user interface engineered with Qt 6, optimizing memory usage and ensuring smooth thread separation between the C++ inference engine and the GUI rendering cycle (supporting MSVC / Clang / GCC).
+    Deterministic Local Storage: Utilizes local JSON catalogs and structured databases (data/products.json, data/results.json) for zero-latency storage of prompt matrices and model outputs.
+    Asynchronous Execution: Heavy server IO operations and model interactions are completely decoupled from the main GUI thread to maintain maximum desktop responsiveness.
 
 ---
 
